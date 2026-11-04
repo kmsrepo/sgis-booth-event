@@ -1,0 +1,20 @@
+# Environment and logs
+.gemini/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local SQLite databases
+*.db
+*.db-journal
+quiz_responses.db
+
+# Vercel and Node
+.vercel
+node_modules/
+npm-debug.log*
+
+# OS Files
+.DS_Store
+Thumbs.db

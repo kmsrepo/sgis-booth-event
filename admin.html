@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>국가데이터처 SGIS 부스 이벤트 · 관리자 콘솔 & 응답 내보내기</title>
+  <script src="/tailwind.js"></script>
+  <style>
+    body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .table-container { max-height: calc(100vh - 380px); }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 py-3 sm:px-6 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <span class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-lg shadow-sm">
+          S
+        </span>
+        <div>
+          <h1 class="text-base sm:text-lg font-black tracking-tight flex items-center gap-2">
+            국가데이터처 SGIS 부스 설문 관리자 콘솔
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+              Live SQLite
+            </span>
+          </h1>
+          <p class="text-xs text-slate-400">현장 참여자 퀴즈 응답 실시간 집계 및 엑셀 데이터 추출</p>
+        </div>
+      </div>
+
+      <div class="flex items-center flex-wrap gap-2">
+        <a href="/" target="_blank" class="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs font-bold border border-slate-700 transition flex items-center gap-1.5">
+          <span>참여자 화면 열기</span>
+          <span>↗</span>
+        </a>
+        <button id="btn-refresh" onclick="fetchResponses()" class="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs font-bold border border-slate-700 transition flex items-center gap-1.5">
+          <span id="refresh-spinner" class="inline-block">🔄</span>
+          <span>새로고침</span>
+        </button>
+        <a href="/api/export/csv" download class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-sm transition flex items-center gap-1.5">
+          <span>📊 엑셀(CSV) 다운로드</span>
+        </a>
+        <a href="/api/export/json" download class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-sm transition flex items-center gap-1.5">
+          <span>JSON</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 w-full flex-1 flex flex-col gap-6">
+
+    <!-- KPI Metric Cards -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-slate-500">총 설문 참여 건수</span>
+          <span class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm">👥</span>
+        </div>
+        <div class="mt-3 flex items-baseline gap-2">
+          <span id="metric-total" class="text-3xl font-black text-slate-900">0</span>
+          <span class="text-xs font-semibold text-slate-400">명 완료</span>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-slate-500">퀴즈 만점자 (4/4)</span>
+          <span class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-sm">🏆</span>
+        </div>
+        <div class="mt-3 flex items-baseline gap-2">
+          <span id="metric-perfect" class="text-3xl font-black text-emerald-600">0</span>
+          <span id="metric-perfect-pct" class="text-xs font-semibold text-slate-400">(0%)</span>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-slate-500">평균 퀴즈 정답수</span>
+          <span class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-sm">⭐</span>
+        </div>
+        <div class="mt-3 flex items-baseline gap-2">
+          <span id="metric-avg" class="text-3xl font-black text-amber-600">0.0</span>
+          <span class="text-xs font-semibold text-slate-400">/ 4.0점</span>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-slate-500">소감 및 의견 수렴</span>
+          <span class="w-8 h-8 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center font-bold text-sm">💬</span>
+        </div>
+        <div class="mt-3 flex items-baseline gap-2">
+          <span id="metric-feedback-count" class="text-3xl font-black text-sky-600">0</span>
+          <span class="text-xs font-semibold text-slate-400">건 등록</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quiz Question Accuracy Breakdown -->
+    <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+      <h2 class="text-sm font-black text-slate-900 mb-3 flex items-center gap-2">
+        <span>📊 4개 퀴즈 문항별 정답률 현황</span>
+        <span class="text-xs font-normal text-slate-500">(정답 여부 실시간 자동 채점)</span>
+      </h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="bg-slate-50 rounded-xl p-3 border border-slate-200/80">
+          <div class="flex justify-between items-center text-xs font-bold text-slate-600 mb-1">
+            <span>Q1. SGIS 명칭</span>
+            <span id="q1-pct" class="text-indigo-600 font-black">0%</span>
+          </div>
+          <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+            <div id="q1-bar" class="bg-indigo-600 h-full rounded-full transition-all duration-500" style="width: 0%;"></div>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-1 truncate" title="정답: SGIS (통계지리정보서비스)">정답: SGIS (통계지리정보서비스)</p>
+        </div>
+
+        <div class="bg-slate-50 rounded-xl p-3 border border-slate-200/80">
+          <div class="flex justify-between items-center text-xs font-bold text-slate-600 mb-1">
+            <span>Q2. 상권·산업 지도</span>
+            <span id="q2-pct" class="text-indigo-600 font-black">0%</span>
+          </div>
+          <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+            <div id="q2-bar" class="bg-indigo-600 h-full rounded-full transition-all duration-500" style="width: 0%;"></div>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-1 truncate" title="정답: 업종통계지도">정답: 업종통계지도</p>
+        </div>
+
+        <div class="bg-slate-50 rounded-xl p-3 border border-slate-200/80">
+          <div class="flex justify-between items-center text-xs font-bold text-slate-600 mb-1">
+            <span>Q3. 근처 일자리 찾기</span>
+            <span id="q3-pct" class="text-indigo-600 font-black">0%</span>
+          </div>
+          <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+            <div id="q3-bar" class="bg-indigo-600 h-full rounded-full transition-all duration-500" style="width: 0%;"></div>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-1 truncate" title="정답: 일자리맵">정답: 일자리맵</p>
+        </div>
+
+        <div class="bg-slate-50 rounded-xl p-3 border border-slate-200/80">
+          <div class="flex justify-between items-center text-xs font-bold text-slate-600 mb-1">
+            <span>Q4. 센서스 자료제공</span>
+            <span id="q4-pct" class="text-indigo-600 font-black">0%</span>
+          </div>
+          <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+            <div id="q4-bar" class="bg-indigo-600 h-full rounded-full transition-all duration-500" style="width: 0%;"></div>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-1 truncate" title="정답: 자료제공 서비스">정답: 자료제공 서비스</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Submissions Table Card -->
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col flex-1 overflow-hidden">
+      <div class="p-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50/50">
+        <div class="flex items-center gap-3">
+          <h2 class="text-sm font-black text-slate-900">현장 참여자 상세 응답 내역</h2>
+          <span id="table-count-badge" class="px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 text-xs font-extrabold">0건</span>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <input
+            id="search-input"
+            type="text"
+            placeholder="소감, 응답내용 검색..."
+            oninput="renderTable()"
+            class="px-3 py-1.5 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none w-48 sm:w-64"
+          />
+        </div>
+      </div>
+
+      <div class="overflow-x-auto flex-1 table-container">
+        <table class="w-full text-left text-xs border-collapse">
+          <thead class="bg-slate-100 text-slate-600 sticky top-0 border-b border-slate-200 font-bold z-10">
+            <tr>
+              <th class="py-2.5 px-3 w-16">접수번호</th>
+              <th class="py-2.5 px-3 w-36">제출일시</th>
+              <th class="py-2.5 px-3 w-20">점수</th>
+              <th class="py-2.5 px-3">Q1 (SGIS명칭)</th>
+              <th class="py-2.5 px-3">Q2 (상권지도)</th>
+              <th class="py-2.5 px-3">Q3 (일자리)</th>
+              <th class="py-2.5 px-3">Q4 (자료제공)</th>
+              <th class="py-2.5 px-4 min-w-[240px]">Q5 부스 방문소감 & 바라는 점</th>
+            </tr>
+          </thead>
+          <tbody id="response-table-body" class="divide-y divide-slate-100 text-slate-700">
+            <tr>
+              <td colspan="8" class="text-center py-12 text-slate-400">데이터를 불러오는 중입니다...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bg-white border-t border-slate-200 py-3 px-4 text-center text-xs text-slate-400">
+    국가데이터처 통계지리정보서비스(SGIS) 홍보부스 현장 운영 시스템 · 로컬 SQLite 영구 보관 중
+  </footer>
+
+  <script>
+    let allResponses = [];
+
+    async function fetchResponses() {
+      const spinner = document.getElementById("refresh-spinner");
+      if (spinner) spinner.classList.add("animate-spin");
+
+      try {
+        const res = await fetch("/api/responses?t=" + Date.now());
+        const data = await res.json();
+        if (data.success) {
+          allResponses = data.responses || [];
+          updateKPIs(data.stats, allResponses.length);
+          renderTable();
+        }
+      } catch (err) {
+        console.error("데이터 로드 실패:", err);
+      } finally {
+        if (spinner) {
+          setTimeout(() => spinner.classList.remove("animate-spin"), 400);
+        }
+      }
+    }
+
+    function updateKPIs(stats, count) {
+      if (!stats) return;
+      document.getElementById("metric-total").textContent = count;
+      document.getElementById("metric-perfect").textContent = stats.perfect_scores || 0;
+      const pct = count > 0 ? Math.round((stats.perfect_scores / count) * 100) : 0;
+      document.getElementById("metric-perfect-pct").textContent = `(${pct}%)`;
+      document.getElementById("metric-avg").textContent = stats.avg_score || "0.0";
+      document.getElementById("metric-feedback-count").textContent = count;
+
+      document.getElementById("q1-pct").textContent = (stats.q1_accuracy || 0) + "%";
+      document.getElementById("q1-bar").style.width = (stats.q1_accuracy || 0) + "%";
+
+      document.getElementById("q2-pct").textContent = (stats.q2_accuracy || 0) + "%";
+      document.getElementById("q2-bar").style.width = (stats.q2_accuracy || 0) + "%";
+
+      document.getElementById("q3-pct").textContent = (stats.q3_accuracy || 0) + "%";
+      document.getElementById("q3-bar").style.width = (stats.q3_accuracy || 0) + "%";
+
+      document.getElementById("q4-pct").textContent = (stats.q4_accuracy || 0) + "%";
+      document.getElementById("q4-bar").style.width = (stats.q4_accuracy || 0) + "%";
+    }
+
+    function renderTable() {
+      const query = (document.getElementById("search-input").value || "").trim().toLowerCase();
+      const filtered = allResponses.filter(r => {
+        if (!query) return true;
+        return (
+          String(r.id).includes(query) ||
+          (r.q1_answer || "").toLowerCase().includes(query) ||
+          (r.q2_answer || "").toLowerCase().includes(query) ||
+          (r.q3_answer || "").toLowerCase().includes(query) ||
+          (r.q4_answer || "").toLowerCase().includes(query) ||
+          (r.q5_feedback || "").toLowerCase().includes(query)
+        );
+      });
+
+      document.getElementById("table-count-badge").textContent = filtered.length + "건";
+
+      const tbody = document.getElementById("response-table-body");
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-12 text-slate-400">등록된 설문 응답이 없습니다.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(r => {
+        const scoreBadge = r.score === 4
+          ? `<span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-extrabold text-[11px]">4 / 4 만점</span>`
+          : `<span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold text-[11px]">${r.score} / 4점</span>`;
+
+        const renderAns = (ans, isCorr) => {
+          return isCorr
+            ? `<span class="inline-flex items-center gap-1 text-emerald-700 font-semibold"><span class="text-xs">✓</span> ${escapeHtml(ans)}</span>`
+            : `<span class="inline-flex items-center gap-1 text-rose-600 line-through text-slate-400">${escapeHtml(ans)}</span>`;
+        };
+
+        return `
+          <tr class="hover:bg-slate-50 transition-colors">
+            <td class="py-2.5 px-3 font-mono font-bold text-slate-500">#${r.id}</td>
+            <td class="py-2.5 px-3 font-mono text-[11px] text-slate-500">${escapeHtml(r.created_at)}</td>
+            <td class="py-2.5 px-3">${scoreBadge}</td>
+            <td class="py-2.5 px-3">${renderAns(r.q1_answer, r.is_q1_correct)}</td>
+            <td class="py-2.5 px-3">${renderAns(r.q2_answer, r.is_q2_correct)}</td>
+            <td class="py-2.5 px-3">${renderAns(r.q3_answer, r.is_q3_correct)}</td>
+            <td class="py-2.5 px-3">${renderAns(r.q4_answer, r.is_q4_correct)}</td>
+            <td class="py-2.5 px-4 font-medium text-slate-900">${escapeHtml(r.q5_feedback)}</td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function escapeHtml(text) {
+      if (!text) return "";
+      return String(text)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    // 초기 로드 및 10초 주기 자동 갱신
+    fetchResponses();
+    setInterval(fetchResponses, 10000);
+  </script>
+</body>
+</html>

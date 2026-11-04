@@ -1,0 +1,19 @@
+{
+  "name": "sgis-booth-event",
+  "version": "1.0.0",
+  "description": "국가데이터처 SGIS 통계지리정보서비스 부스 모바일 이벤트 웹페이지 (로컬 독립형 및 Vercel 배포 지원)",
+  "main": "index.html",
+  "scripts": {
+    "start": "python3 server.py 8080"
+  },
+  "keywords": [
+    "sgis",
+    "kosis",
+    "mods",
+    "survey",
+    "booth-event",
+    "gis"
+  ],
+  "author": "kmsrepo",
+  "license": "MIT"
+}
