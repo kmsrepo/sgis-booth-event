@@ -1,4 +1,8 @@
 // Vercel Serverless Function Helper for SGIS Quiz Event
+// Supports:
+// 1. Persistent Cloud Vercel KV (Upstash Redis) if KV_REST_API_URL is configured
+// 2. In-Memory & /tmp local cache fallback for ephemeral serverless instances
+
 const fs = require('fs');
 const path = require('path');
 
@@ -11,23 +15,83 @@ const CORRECT_ANSWERS = {
   q4: "자료제공 서비스"
 };
 
-function getResponses() {
+// Global in-memory cache shared across warm invocations within the same container
+if (!global._inMemoryResponses) {
+  global._inMemoryResponses = null;
+}
+
+async function getResponses() {
+  // 1. Try Vercel KV cloud storage if environment variables are present
+  if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
+    try {
+      const url = `${process.env.KV_REST_API_URL}/get/sgis_responses`;
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.result !== undefined && data.result !== null) {
+          const parsed = typeof data.result === 'string' ? JSON.parse(data.result) : data.result;
+          if (Array.isArray(parsed)) {
+            global._inMemoryResponses = parsed;
+            return parsed;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Vercel KV fetch failed, falling back to local memory:", err.message);
+    }
+  }
+
+  // 2. Try in-memory cache
+  if (Array.isArray(global._inMemoryResponses)) {
+    return global._inMemoryResponses;
+  }
+
+  // 3. Try /tmp file cache
   try {
     if (fs.existsSync(DB_FILE)) {
       const data = fs.readFileSync(DB_FILE, 'utf-8');
-      return JSON.parse(data);
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed)) {
+        global._inMemoryResponses = parsed;
+        return parsed;
+      }
     }
   } catch (err) {
-    console.error("Failed to read DB file:", err);
+    console.warn("Failed to read /tmp DB file:", err.message);
   }
-  return [];
+
+  global._inMemoryResponses = [];
+  return global._inMemoryResponses;
 }
 
-function saveResponses(list) {
+async function saveResponses(list) {
+  // Update in-memory
+  global._inMemoryResponses = list;
+
+  // Update /tmp file
   try {
     fs.writeFileSync(DB_FILE, JSON.stringify(list, null, 2), 'utf-8');
   } catch (err) {
-    console.error("Failed to write DB file:", err);
+    console.warn("Failed to write to /tmp DB file:", err.message);
+  }
+
+  // Update Vercel KV if available
+  if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
+    try {
+      const url = `${process.env.KV_REST_API_URL}/set/sgis_responses`;
+      await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(list)
+      });
+    } catch (err) {
+      console.warn("Vercel KV save failed:", err.message);
+    }
   }
 }
 
