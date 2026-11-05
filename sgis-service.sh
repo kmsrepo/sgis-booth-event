@@ -91,6 +91,12 @@ start() {
         fi
     done
 
+    # 3. Protect from Android Low Memory Killer (LMK) and acquire wake lock
+    echo sgis_server > /sys/power/wake_lock 2>/dev/null || true
+    for p in $(pgrep -f "$BIN") $(pgrep -f "cloudflared"); do
+        echo -950 > "/proc/$p/oom_score_adj" 2>/dev/null || true
+    done
+
     echo ""
     echo "=========================================================="
     echo " 🎉 SGIS Booth Mobile Server is LIVE on Android!"
@@ -105,6 +111,7 @@ start() {
     echo " 📶 [Tailscale Direct]   : http://$TAILSCALE_IP:$PORT"
     echo " 📱 [Local Device]       : http://localhost:$PORT"
     echo " 💾 [SDCard Excel CSV]   : $SDCARD_DIR/sgis_quiz_responses.csv"
+    echo " 🛡️ [LMK / Keepalive]    : oom_score_adj=-950, wakelock active"
     echo "=========================================================="
 }
 
@@ -112,6 +119,7 @@ stop() {
     echo "Stopping SGIS Booth Mobile Server & Tunnel..."
     pkill -f "$BIN" 2>/dev/null || true
     pkill -f "cloudflared tunnel.*$PORT" 2>/dev/null || true
+    echo sgis_server > /sys/power/wake_unlock 2>/dev/null || true
     rm -f "$SERVER_PID_FILE" "$TUNNEL_PID_FILE" "$URL_FILE"
     echo "Stopped."
 }
