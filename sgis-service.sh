@@ -149,6 +149,20 @@ status() {
     fi
 }
 
+reset_data() {
+    echo "Backing up and clearing quiz responses..."
+    BK_TIME=$(date +%Y%m%d_%H%M%S)
+    mkdir -p "$SDCARD_DIR/backup"
+    [ -f "$SDCARD_DIR/sgis_quiz_responses.csv" ] && cp "$SDCARD_DIR/sgis_quiz_responses.csv" "$SDCARD_DIR/backup/responses_$BK_TIME.csv"
+    rm -f "$DATA_DIR/quiz_responses.json" "$DATA_DIR/sgis_quiz_responses.csv"
+    rm -f "$SDCARD_DIR/quiz_responses.json" "$SDCARD_DIR/sgis_quiz_responses.csv"
+    echo "Restarting server to re-initialize counter to ID #1..."
+    stop
+    sleep 1
+    start
+    echo "Data reset complete. Ready for booth attendees starting at ID #1."
+}
+
 case "$1" in
     start)
         start
@@ -167,8 +181,11 @@ case "$1" in
     url)
         get_url
         ;;
+    reset-data)
+        reset_data
+        ;;
     *)
-        echo "Usage: $0 {start|stop|restart|status|url}"
+        echo "Usage: $0 {start|stop|restart|status|url|reset-data}"
         exit 1
         ;;
 esac
